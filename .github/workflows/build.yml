@@ -1,1 +1,47 @@
+name: Build BowString
 
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBOWSTRING_COPY_PLUGIN=OFF
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: cmake --build build --config Release --parallel 3 --target BowString_Standalone BowString_AU BowString_VST3
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release --parallel 3 --target BowString_Standalone BowString_VST3
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd build/BowString_artefacts/Release
+          ditto -c -k --keepParent Standalone/BowString.app "$GITHUB_WORKSPACE/BowString-macOS-App.zip"
+          ditto -c -k --keepParent AU/BowString.component "$GITHUB_WORKSPACE/BowString-macOS-AU-for-Logic.zip"
+          ditto -c -k --keepParent VST3/BowString.vst3 "$GITHUB_WORKSPACE/BowString-macOS-VST3.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/BowString_artefacts/Release/Standalone/BowString.exe -DestinationPath BowString-Windows-App.zip
+          Compress-Archive -Path build/BowString_artefacts/Release/VST3/BowString.vst3 -DestinationPath BowString-Windows-VST3.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BowString-${{ runner.os }}
+          path: BowString-*.zip
